@@ -1,6 +1,8 @@
 import typing
 from zipfile import ZipFile
 from pathlib import Path, PurePath
+import os
+import shutil
 
 from .util import PathsPair
 
@@ -59,5 +61,20 @@ class ArchiveDestinationBackend(DestinationBackend):
 			return appConstsText.decode("utf-8")
 
 	def writeBack(self, pp: PathsPair, source: str) -> None:
-		with ZipFile(pp.root, 'a') as dst:
-			dst.writestr(str(pp.internal), source)
+		with ZipFile(str(pp.root) + '.patched', 'w') as dst:
+			with ZipFile(pp.root, 'r') as src:
+				metadata_info = None
+				for info in src.infolist():
+					if info.filename == str(pp.internal):
+						print(f"Found file to replace {info.filename}")
+						metadata_info = info
+					elif info.is_dir():
+						dst.mkdir(info)
+					else:
+						dst.writestr(info, src.read(info.filename))
+			if metadata_info is not None:
+				dst.writestr(metadata_info, source)
+			else:
+				dst.writestr(str(pp.internal), source)
+		os.unlink(pp.root)
+		shutil.move(str(pp.root) + '.patched', pp.root)
